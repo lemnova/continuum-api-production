@@ -11,6 +11,8 @@ import tech.lemnova.continuum.controller.dto.note.NoteCreateRequest;
 import tech.lemnova.continuum.controller.dto.note.NoteUpdateRequest;
 import tech.lemnova.continuum.domain.entity.Entity;
 import tech.lemnova.continuum.domain.note.Note;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import tech.lemnova.continuum.domain.plan.PlanConfiguration;
 import tech.lemnova.continuum.domain.user.User;
 import tech.lemnova.continuum.domain.user.UserRepository;
@@ -65,7 +67,7 @@ public class NoteServiceUnitTest {
     }
 
     @Test
-    void create_savesNoteWithContent() {
+    void create_savesNoteWithContent() throws Exception {
         setAuthenticatedUser("user1");
 
         Note savedNote = new Note();
@@ -78,7 +80,10 @@ public class NoteServiceUnitTest {
         when(noteRepo.save(any(Note.class))).thenReturn(savedNote);
         when(entityRepo.findByUserId("user1")).thenReturn(List.of());
 
-        var result = noteService.create(new tech.lemnova.continuum.controller.dto.note.NoteCreateRequest("Test", "Test content", ""));
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode contentNode = mapper.readTree("{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Test content\"}]}]}");
+
+        var result = noteService.create(new tech.lemnova.continuum.controller.dto.note.NoteCreateRequest("Test", contentNode, ""));
 
         assertThat(result).isNotNull();
         assertThat(result.id()).isEqualTo("n1");
