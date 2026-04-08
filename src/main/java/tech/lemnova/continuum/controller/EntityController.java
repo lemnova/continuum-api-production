@@ -109,7 +109,7 @@ public class EntityController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{id}/track")
+    @PostMapping("/{id}/track-habit")
     @Operation(summary = "Track habit occurrence", description = "Records a tracking event for a habit entity on the current date")
     public ResponseEntity<EntityResponse> trackHabit(
             @AuthenticationPrincipal CustomUserDetails user,
