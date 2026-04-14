@@ -1,5 +1,6 @@
 package tech.lemnova.continuum.infra.security;
 
+import org.springframework.context.annotation.Lazy; // Importação necessária
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
@@ -13,7 +14,8 @@ public class CustomOidcUserService extends OidcUserService {
 
     private final AuthService authService;
 
-    public CustomOidcUserService(AuthService authService) {
+    // Adicionamos o @Lazy aqui para resolver a referência circular
+    public CustomOidcUserService(@Lazy AuthService authService) {
         this.authService = authService;
     }
 
@@ -21,6 +23,7 @@ public class CustomOidcUserService extends OidcUserService {
     public OidcUser loadUser(OidcUserRequest userRequest) throws OAuth2AuthenticationException {
         OidcUser oidcUser = super.loadUser(userRequest);
         String email = oidcUser.getEmail();
+        
         if (email == null || email.isBlank()) {
             throw new BadRequestException("Google login requires a verified email");
         }
