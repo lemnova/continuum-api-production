@@ -4,10 +4,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -33,18 +29,22 @@ public class SecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
     private final RateLimitingFilter rateLimitingFilter;
     private final SecurityHeadersFilter securityHeadersFilter;
-    private final CustomUserDetailsService userDetailsService;
+    private final CustomOidcUserService oidcUserService;
+    private final OAuth2AuthenticationSuccessHandler oauth2SuccessHandler;
 
     // Alterado para a porta 5173 (Vite padrão)
     @Value("${cors.allowed.origins:http://localhost:5173}")
     private String corsAllowedOrigins;
 
     public SecurityConfig(JwtAuthFilter jwtAuthFilter, RateLimitingFilter rateLimitingFilter, 
-                         SecurityHeadersFilter securityHeadersFilter, CustomUserDetailsService userDetailsService) {
+                         SecurityHeadersFilter securityHeadersFilter,
+                         CustomOidcUserService oidcUserService,
+                         OAuth2AuthenticationSuccessHandler oauth2SuccessHandler) {
         this.jwtAuthFilter      = jwtAuthFilter;
         this.rateLimitingFilter = rateLimitingFilter;
         this.securityHeadersFilter = securityHeadersFilter;
-        this.userDetailsService = userDetailsService;
+        this.oidcUserService = oidcUserService;
+        this.oauth2SuccessHandler = oauth2SuccessHandler;
     }
 
     @Bean
@@ -52,20 +52,22 @@ public class SecurityConfig {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
+            .formLogin(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .headers(headers -> headers
-                .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"))
+                .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; script-src 'self'; style-src 'self' fonts.googleapis.com; font-src fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'"))
                 .frameOptions(frameOptions -> frameOptions.deny())
                 .xssProtection(xss -> xss.headerValue(org.springframework.security.web.header.writers.XXssProtectionHeaderWriter.HeaderValue.ENABLED_MODE_BLOCK))
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/health", "/error", "/actuator/**").permitAll()
                 .requestMatchers("/api/webhooks/**", "/webhooks/**").permitAll()
+                .requestMatchers("/oauth2/**", "/oauth2/authorization/**", "/login/**").permitAll()
                 
-                // Removido o prefixo /api fixo para bater com o que o teu frontend envia
+                // ONLY OAuth2 callback and JWT refresh are allowed (no legacy password-based auth)
                 .requestMatchers(HttpMethod.POST,
-                        "/auth/register", "/auth/login", "/auth/google/callback", "/auth/resend-verification",
-                        "/api/auth/register", "/api/auth/login", "/api/auth/google/callback", "/api/auth/resend-verification"
+                        "/auth/google/callback", "/api/auth/google/callback",
+                        "/auth/refresh", "/api/auth/refresh"
                 ).permitAll()
                 
                 .requestMatchers(HttpMethod.GET, 
@@ -73,12 +75,18 @@ public class SecurityConfig {
                         "/api/auth/verify", "/api/auth/verify-email"
                 ).permitAll()
                 
+                // DEPRECATED: /api/auth/register and /api/auth/login are DISABLED to prevent brute force
+                // Clients must use Google OAuth2 instead (POST /oauth2/authorization/google)
+                
                 .requestMatchers(
                     "/swagger-ui/**", "/swagger-ui.html",
                     "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**").permitAll()
                 .anyRequest().authenticated()
             )
-            .authenticationProvider(authenticationProvider())
+            .oauth2Login(oauth2 -> oauth2
+                .userInfoEndpoint(userInfo -> userInfo.oidcUserService(oidcUserService))
+                .successHandler(oauth2SuccessHandler)
+            )
             .addFilterBefore(securityHeadersFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -111,18 +119,6 @@ public class SecurityConfig {
         return source;
     }
 
-    @Bean
-    public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(userDetailsService);
-        provider.setPasswordEncoder(passwordEncoder());
-        return provider;
-    }
-
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
-    }
 
     @Bean
     public PasswordEncoder passwordEncoder() { 

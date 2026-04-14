@@ -33,7 +33,7 @@ public class EntityController {
     public ResponseEntity<EntityResponse> create(
             @AuthenticationPrincipal CustomUserDetails user,
             @Valid @RequestBody EntityCreateRequest req) {
-        Entity entity = entityService.create(user.getUserId(), user.getVaultId(), req);
+        Entity entity = entityService.create(req);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(EntityResponse.from(entity));
     }
@@ -105,7 +105,7 @@ public class EntityController {
     public ResponseEntity<Void> delete(
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable String id) {
-        entityService.delete(user.getUserId(), user.getVaultId(), id);
+        entityService.delete(id);
         return ResponseEntity.noContent().build();
     }
 

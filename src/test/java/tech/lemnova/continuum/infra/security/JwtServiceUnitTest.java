@@ -27,15 +27,16 @@ class JwtServiceUnitTest {
         secretField.setAccessible(true);
         secretField.set(jwtService, secret);
 
-        Field expField = JwtService.class.getDeclaredField("expirationMs");
+        Field expField = JwtService.class.getDeclaredField("accessTokenExpirationMs");
         expField.setAccessible(true);
         expField.setLong(jwtService, 1000L * 60 * 60); // 1 hour
 
-        String token = jwtService.generateAccessToken("user-123", "alice");
+        String token = jwtService.generateAccessToken("user-123", "alice", "alice@example.com", "vault-123");
         assertThat(token).isNotNull();
 
         Claims claims = jwtService.parse(token);
-        assertThat(claims.getSubject()).isEqualTo("alice");
+        assertThat(claims.getSubject()).isEqualTo("alice@example.com");
+        assertThat(claims.get("email", String.class)).isEqualTo("alice@example.com");
         assertThat(jwtService.extractUserId(token)).isEqualTo("user-123");
         assertThat(jwtService.isValid(token)).isTrue();
     }
@@ -53,7 +54,7 @@ class JwtServiceUnitTest {
         secretField.setAccessible(true);
         secretField.set(jwtService, secret);
 
-        Field expField = JwtService.class.getDeclaredField("expirationMs");
+        Field expField = JwtService.class.getDeclaredField("accessTokenExpirationMs");
         expField.setAccessible(true);
         expField.setLong(jwtService, 1000L * 60 * 60);
 
@@ -86,12 +87,12 @@ class JwtServiceUnitTest {
         secretField.setAccessible(true);
         secretField.set(jwtService, secret);
 
-        Field expField = JwtService.class.getDeclaredField("expirationMs");
+        Field expField = JwtService.class.getDeclaredField("accessTokenExpirationMs");
         expField.setAccessible(true);
         expField.setLong(jwtService, 1000L * 60 * 60);
 
         UUID userId = UUID.fromString("987e6543-e89b-12d3-a456-426614174999");
-        String token = jwtService.generateAccessToken(userId.toString(), "charlie");
+        String token = jwtService.generateAccessToken(userId.toString(), "charlie", "charlie@example.com", "vault-456");
 
         UUID extractedId = jwtService.extractUserIdAsUUID(token);
         assertThat(extractedId).isEqualTo(userId);

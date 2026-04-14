@@ -1,6 +1,7 @@
 package tech.lemnova.continuum.application.service;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -78,6 +79,7 @@ class AuthServiceUnitTest {
     }
 
     @Test
+    @Disabled("Migrado para OAuth2")
     void register_createsUser_and_sendsVerification() {
         RegisterRequest req = new RegisterRequest("alice", "alice@example.com", "secret123");
 
@@ -108,6 +110,7 @@ class AuthServiceUnitTest {
     }
 
     @Test
+    @Disabled("Migrado para OAuth2")
     void login_withValidCredentials_returnsAuthResponse() {
         LoginRequest req = new LoginRequest("alice@example.com", "secret123");
         User user = new User();
@@ -148,5 +151,27 @@ class AuthServiceUnitTest {
         assertThat(userCaptor.getValue().isEmailVerified()).isTrue();
 
         verify(tokenRepo).delete(verificationToken);
+    }
+
+    @Test
+    void upsertGoogleUser_createsNewUserWithVaultIdAndAvatarUrl() {
+        String googleId = "g123";
+        String email = "newuser@example.com";
+        String name = "New User";
+        Boolean emailVerified = true;
+        String avatarUrl = "https://example.com/avatar.jpg";
+
+        when(users.findByEmail(email)).thenReturn(Optional.empty());
+        when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User result = authService.upsertGoogleUser(googleId, email, name, emailVerified, avatarUrl);
+
+        assertThat(result.getEmail()).isEqualTo(email);
+        assertThat(result.getGoogleId()).isEqualTo(googleId);
+        assertThat(result.getAvatarUrl()).isEqualTo(avatarUrl);
+        assertThat(result.getVaultId()).isNotNull();
+        assertThat(result.getVaultId()).isNotBlank();
+        assertThat(result.getActive()).isTrue();
+        assertThat(result.isEmailVerified()).isTrue();
     }
 }

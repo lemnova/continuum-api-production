@@ -32,17 +32,30 @@ public class AuthController {
         this.googleOAuthService = googleOAuthService;
     }
 
+    /**
+     * DEPRECATED: Password-based registration is disabled.
+     * Clients must use Google OAuth2 instead.
+     * @see <a href="/oauth2/authorization/google">Google OAuth2</a>
+     */
     @PostMapping("/register")
-    @Operation(summary = "Register a new user", description = "Creates a new user account and sends verification email")
+    @Deprecated(forRemoval = true)
     public ResponseEntity<Map<String, String>> register(@Valid @RequestBody RegisterRequest req) {
-        authService.register(req);
-        return ResponseEntity.ok(Map.of("message", "Registration successful. Please check your email to verify your account."));
+        throw new BadRequestException(
+            "Password-based registration is disabled. Please use Google OAuth2 login: POST /oauth2/authorization/google"
+        );
     }
 
+    /**
+     * DEPRECATED: Password-based login is disabled.
+     * Clients must use Google OAuth2 instead.
+     * @see <a href="/oauth2/authorization/google">Google OAuth2</a>
+     */
     @PostMapping("/login")
-    @Operation(summary = "Authenticate user", description = "Logs in user and returns access and refresh tokens")
+    @Deprecated(forRemoval = true)
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest req) {
-        return ResponseEntity.ok(authService.login(req));
+        throw new BadRequestException(
+            "Password-based login is disabled. Please use Google OAuth2 login: POST /oauth2/authorization/google"
+        );
     }
 
     @PostMapping("/google/callback")
@@ -60,13 +73,16 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", "Email verified successfully"));
     }
 
+    /**
+     * DEPRECATED: Email verification is automatic with Google OAuth2.
+     * @deprecated No longer needed - Google OAuth2 provides email verification
+     */
     @PostMapping("/resend-verification")
-    @Operation(summary = "Resend verification email", description = "Sends a new email verification link to the user")
+    @Deprecated(forRemoval = true)
     public ResponseEntity<Map<String, String>> resendVerification(@RequestBody Map<String, String> body) {
-        String email = body.get("email");
-        if (email == null || email.isBlank()) throw new BadRequestException("Email is required");
-        authService.resendVerificationEmail(email);
-        return ResponseEntity.ok(Map.of("message", "Verification email sent"));
+        throw new BadRequestException(
+            "Email verification is automatic with Google OAuth2. No manual verification needed."
+        );
     }
 
     @PostMapping("/refresh")

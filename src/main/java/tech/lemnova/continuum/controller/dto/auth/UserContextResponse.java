@@ -10,6 +10,7 @@ import java.time.Instant;
 
 public record UserContextResponse(
     String id, String username, String email, String role, Boolean active,
+    String vaultId, String avatarUrl,
     PlanType plan, SubscriptionStatus subscriptionStatus,
     int maxEntities, int maxNotes, int maxHabits, int historyDays,
     boolean advancedMetrics, boolean dataExport, boolean calendarSync,
@@ -19,6 +20,7 @@ public record UserContextResponse(
         SubscriptionStatus status = sub != null ? sub.getStatus() : SubscriptionStatus.ACTIVE;
         return new UserContextResponse(
             user.getId(), user.getUsername(), user.getEmail(), user.getRole(), user.getActive(),
+            user.getVaultId(), user.getAvatarUrl(),
             user.getPlan(), status,
             limits.maxEntities(), limits.maxNotes(), limits.maxHabits(), limits.maxHistoryDays(),
             limits.advancedMetrics(), limits.dataExport(), limits.calendarSync(),

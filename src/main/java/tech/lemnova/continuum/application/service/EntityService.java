@@ -1,6 +1,7 @@
 package tech.lemnova.continuum.application.service;
 
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import tech.lemnova.continuum.application.exception.NotFoundException;
 import tech.lemnova.continuum.application.exception.PlanLimitException;
@@ -17,6 +18,7 @@ import tech.lemnova.continuum.domain.user.User;
 import tech.lemnova.continuum.domain.user.UserRepository;
 import tech.lemnova.continuum.infra.persistence.EntityRepository;
 import tech.lemnova.continuum.infra.persistence.NoteRepository;
+import tech.lemnova.continuum.infra.security.CustomUserDetails;
 
 import java.time.Instant;
 import java.util.List;
@@ -42,6 +44,22 @@ public class EntityService {
     private User getUser(String userId) {
         return userRepo.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found: " + userId));
+    }
+
+    private String getCurrentUserId() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof CustomUserDetails userDetails) {
+            return userDetails.getUserId();
+        }
+        throw new IllegalStateException("Authenticated user not found");
+    }
+
+    private String getCurrentVaultId() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof CustomUserDetails userDetails) {
+            return userDetails.getVaultId();
+        }
+        throw new IllegalStateException("Authenticated user not found");
     }
     
     /**
@@ -84,7 +102,10 @@ public class EntityService {
         return entityRepo.findByVaultIdAndType(user.getVaultId(), type);
     }
 
-    public Entity create(String userId, String vaultId, EntityCreateRequest req) {
+    public Entity create(EntityCreateRequest req) {
+        String userId = getCurrentUserId();
+        String vaultId = getCurrentVaultId();
+
         // Verificar limite de entidades baseado no plano do usuário
         User user = getUser(userId);
         long currentEntityCount = entityRepo.countByUserId(userId);
@@ -104,6 +125,11 @@ public class EntityService {
         Entity saved = entityRepo.save(entity);
         userService.incrementEntityCount(userId);
         return saved;
+    }
+
+    @Deprecated
+    public Entity create(String userId, String vaultId, EntityCreateRequest req) {
+        return create(req);
     }
 
     /**
@@ -171,11 +197,20 @@ public class EntityService {
         return entityRepo.save(entity);
     }
 
-    public void delete(String userId, String vaultId, String entityId) {
+    public void delete(String entityId) {
+        String userId = getCurrentUserId();
+        String vaultId = getCurrentVaultId();
+
         User user = getUser(userId);
         // Validação centralizada de posse
         Entity entity = validateOwnership(userId, vaultId, entityId);
         entityRepo.delete(entity);
+        userService.decrementEntityCount(userId);
+    }
+
+    @Deprecated
+    public void delete(String userId, String vaultId, String entityId) {
+        delete(entityId);
     }
 
     public List<Entity> listByVault(String vaultId) {

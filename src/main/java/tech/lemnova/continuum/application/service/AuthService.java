@@ -207,31 +207,77 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthResponse googleAuth(tech.lemnova.continuum.infra.google.GoogleOAuthService.GoogleUserInfo googleUser) {
-        User user = users.findByEmail(googleUser.email()).orElse(null);
+    public User upsertGoogleUser(String googleId, String email, String name, Boolean emailVerified, String avatarUrl) {
+        if (email == null || email.isBlank()) {
+            throw new BadRequestException("Google login requires an email");
+        }
+
+        User user = users.findByEmail(email).orElse(null);
         if (user == null) {
             String vaultId = UUID.randomUUID().toString().replace("-", "");
-            user = new User();
-            user.setUsername(googleUser.email().split("@")[0].replaceAll("[^a-zA-Z0-9]", ""));
-            user.setEmail(googleUser.email());
-            user.setGoogleId(googleUser.googleId());
-            user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
-            user.setActive(true);
-            user.setEmailVerified(true);
-            user.setRole("USER");
-            user.setPlan(PlanType.FREE);
-            user.setVaultId(vaultId);
-            user.setCreatedAt(Instant.now());
-            user.setUpdatedAt(Instant.now());
+            String username = name != null && !name.isBlank() ? name : email.split("@")[0].replaceAll("[^a-zA-Z0-9]", "");
+            user = User.builder()
+                    .username(username)
+                    .email(email)
+                    .googleId(googleId)
+                    .avatarUrl(avatarUrl)
+                    .password(null)
+                    .active(true)
+                    .emailVerified(Boolean.TRUE.equals(emailVerified))
+                    .role("USER")
+                    .plan(PlanType.FREE)
+                    .vaultId(vaultId)
+                    .entityCount(0)
+                    .noteCount(0)
+                    .createdAt(Instant.now())
+                    .updatedAt(Instant.now())
+                    .build();
             user = users.save(user);
             createFreeSubscription(user.getId());
             initVaultAsync(vaultId);
-        } else if (user.getGoogleId() == null) {
-            user.setGoogleId(googleUser.googleId());
-            user.setActive(true);
-            user.setEmailVerified(true);
-            users.save(user);
+        } else {
+            boolean changed = false;
+            if (user.getGoogleId() == null) {
+                user.setGoogleId(googleId);
+                changed = true;
+            }
+            if (avatarUrl != null && !avatarUrl.isBlank() && (user.getAvatarUrl() == null || user.getAvatarUrl().isBlank())) {
+                user.setAvatarUrl(avatarUrl);
+                changed = true;
+            }
+            if (!Boolean.TRUE.equals(user.getActive())) {
+                user.setActive(true);
+                changed = true;
+            }
+            if (!Boolean.TRUE.equals(user.isEmailVerified())) {
+                user.setEmailVerified(true);
+                changed = true;
+            }
+            if (user.getPassword() != null) {
+                user.setPassword(null);
+                changed = true;
+            }
+            if ((user.getUsername() == null || user.getUsername().isBlank()) && name != null && !name.isBlank()) {
+                user.setUsername(name);
+                changed = true;
+            }
+            if (changed) {
+                user.setUpdatedAt(Instant.now());
+                user = users.save(user);
+            }
         }
+        return user;
+    }
+
+    @Transactional
+    public AuthResponse googleAuth(String googleId, String email, String name, Boolean emailVerified, String avatarUrl) {
+        User user = upsertGoogleUser(googleId, email, name, emailVerified, avatarUrl);
+        return buildAuthResponseWithTokenPair(user);
+    }
+
+    @Transactional
+    public AuthResponse googleAuth(tech.lemnova.continuum.infra.google.GoogleOAuthService.GoogleUserInfo googleUser) {
+        User user = upsertGoogleUser(googleUser.googleId(), googleUser.email(), googleUser.name(), googleUser.emailVerified(), googleUser.picture());
         return buildAuthResponseWithTokenPair(user);
     }
 

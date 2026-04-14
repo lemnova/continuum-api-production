@@ -18,8 +18,10 @@ import tech.lemnova.continuum.domain.user.User;
 import tech.lemnova.continuum.domain.user.UserRepository;
 import tech.lemnova.continuum.infra.persistence.EntityRepository;
 import tech.lemnova.continuum.infra.persistence.NoteRepository;
+import tech.lemnova.continuum.infra.persistence.NoteLinkRepository;
 import tech.lemnova.continuum.infra.security.CustomUserDetails;
 import tech.lemnova.continuum.infra.vault.VaultStorageService;
+import tech.lemnova.continuum.application.service.TiptapParserService;
 
 import java.time.Instant;
 import java.util.List;
@@ -35,12 +37,15 @@ import static org.mockito.Mockito.when;
 public class NoteServiceUnitTest {
 
     @Mock private NoteRepository noteRepo;
+    @Mock private NoteLinkRepository noteLinkRepo;
     @Mock private EntityRepository entityRepo;
     @Mock private VaultStorageService storageService;
     @Mock private UserService userService;
     @Mock private ExtractionService extractionService;
+    @Mock private TiptapParserService tiptapParserService;
     @Mock private PlanConfiguration planConfig;
     @Mock private UserRepository userRepository;
+    @Mock private ObjectMapper objectMapper;
 
     @InjectMocks
     private NoteService noteService;
@@ -70,24 +75,24 @@ public class NoteServiceUnitTest {
     void create_savesNoteWithContent() throws Exception {
         setAuthenticatedUser("user1");
 
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode contentNode = mapper.readTree("{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Test content\"}]}]}");
+
         Note savedNote = new Note();
         savedNote.setId("n1");
         savedNote.setUserId("user1");
         savedNote.setTitle("Test");
-        savedNote.setContent("Test content");
+        savedNote.setContent(contentNode.toString());
         savedNote.setCreatedAt(Instant.now());
 
         when(noteRepo.save(any(Note.class))).thenReturn(savedNote);
         when(entityRepo.findByUserId("user1")).thenReturn(List.of());
 
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode contentNode = mapper.readTree("{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Test content\"}]}]}");
-
         var result = noteService.create(new tech.lemnova.continuum.controller.dto.note.NoteCreateRequest("Test", contentNode, ""));
 
         assertThat(result).isNotNull();
         assertThat(result.id()).isEqualTo("n1");
-        assertThat(result.content()).isEqualTo("Test content");
+        assertThat(result.content().toString()).isEqualTo(contentNode.toString());
     }
 
     @Test

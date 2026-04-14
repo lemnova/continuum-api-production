@@ -37,6 +37,8 @@ public class User {
 
     private String googleId;
 
+    private String avatarUrl;
+
     // Email verification fields
     @Builder.Default
     private boolean emailVerified = false;

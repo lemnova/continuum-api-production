@@ -4,6 +4,8 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,7 @@ import java.util.UUID;
 @Service
 public class JwtService {
 
+    private static final Logger logger = LoggerFactory.getLogger(JwtService.class);
     public static final String TOKEN_TYPE_ACCESS = "access";
     public static final String TOKEN_TYPE_REFRESH = "refresh";
 
@@ -78,7 +81,7 @@ public class JwtService {
                     expanded[i] = seed[i % seed.length];
                 }
                 secret = Base64.getEncoder().encodeToString(expanded);
-                System.out.println("⚠️  TEST MODE: JWT secret auto-expanded to 256 bits");
+                logger.warn("TEST MODE: JWT secret auto-expanded to 256 bits");
                 return;
             }
             throw new IllegalStateException(
@@ -90,7 +93,7 @@ public class JwtService {
             );
         }
 
-        System.out.println("✅ JWT_SECRET validated: " + bitLength + " bits (HS256 ready)");
+        logger.info("JWT_SECRET validated: {} bits (HS256 ready)", bitLength);
     }
 
     private Key key() {
@@ -100,10 +103,16 @@ public class JwtService {
     /**
      * Gera um Access Token com curta duração (15 minutos).
      */
-    public String generateAccessToken(String userId, String username) {
+    public String generateAccessToken(String userId, String username, String email, String vaultId) {
         return Jwts.builder()
-                .setClaims(Map.of("userId", userId, "username", username, "type", TOKEN_TYPE_ACCESS))
-                .setSubject(username)
+                .setClaims(Map.of(
+                    "userId", userId,
+                    "username", username,
+                    "email", email,
+                    "vaultId", vaultId,
+                    "type", TOKEN_TYPE_ACCESS
+                ))
+                .setSubject(email)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpirationMs))
                 .signWith(key(), SignatureAlgorithm.HS256)
@@ -114,10 +123,17 @@ public class JwtService {
      * Gera um Refresh Token com longa duração (7 dias).
      * Deve ser armazenado com segurança no cliente (HttpOnly cookie ou secure storage).
      */
-    public String generateRefreshToken(String userId, String username) {
+    public String generateRefreshToken(String userId, String username, String email, String vaultId) {
         return Jwts.builder()
-                .setClaims(Map.of("userId", userId, "username", username, "type", TOKEN_TYPE_REFRESH, "jti", UUID.randomUUID().toString()))
-                .setSubject(username)
+                .setClaims(Map.of(
+                    "userId", userId,
+                    "username", username,
+                    "email", email,
+                    "vaultId", vaultId,
+                    "type", TOKEN_TYPE_REFRESH,
+                    "jti", UUID.randomUUID().toString()
+                ))
+                .setSubject(email)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + refreshTokenExpirationMs))
                 .signWith(key(), SignatureAlgorithm.HS256)
@@ -127,10 +143,10 @@ public class JwtService {
     /**
      * Gera ambos Access e Refresh tokens.
      */
-    public TokenPair generateTokenPair(String userId, String username) {
+    public TokenPair generateTokenPair(String userId, String username, String email, String vaultId) {
         return new TokenPair(
-            generateAccessToken(userId, username),
-            generateRefreshToken(userId, username)
+            generateAccessToken(userId, username, email, vaultId),
+            generateRefreshToken(userId, username, email, vaultId)
         );
     }
 
@@ -138,11 +154,11 @@ public class JwtService {
      * Gera tokens a partir de um User (compatível com código antigo).
      */
     public String generateFromUser(User user) {
-        return generateAccessToken(user.getId().toString(), user.getUsername());
+        return generateAccessToken(user.getId().toString(), user.getUsername(), user.getEmail(), user.getVaultId());
     }
 
     public TokenPair generateTokenPairFromUser(User user) {
-        return generateTokenPair(user.getId().toString(), user.getUsername());
+        return generateTokenPair(user.getId().toString(), user.getUsername(), user.getEmail(), user.getVaultId());
     }
 
     public Claims parse(String token) {
@@ -152,7 +168,19 @@ public class JwtService {
     }
 
     public String extractUsername(String token) { 
-        return parse(token).getSubject(); 
+        String subject = parse(token).getSubject();
+        if (subject != null && !subject.isBlank()) {
+            return subject;
+        }
+        return parse(token).get("email", String.class);
+    }
+
+    public String extractEmail(String token) {
+        return parse(token).get("email", String.class);
+    }
+
+    public String extractVaultId(String token) {
+        return parse(token).get("vaultId", String.class);
     }
     
     public String extractUserId(String token) { 

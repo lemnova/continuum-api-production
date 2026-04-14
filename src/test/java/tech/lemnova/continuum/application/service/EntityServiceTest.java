@@ -6,6 +6,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import tech.lemnova.continuum.controller.dto.entity.EntityCreateRequest;
 import tech.lemnova.continuum.controller.dto.entity.EntityUpdateRequest;
 import tech.lemnova.continuum.domain.entity.Entity;
@@ -16,6 +18,7 @@ import tech.lemnova.continuum.domain.user.User;
 import tech.lemnova.continuum.domain.user.UserRepository;
 import tech.lemnova.continuum.infra.persistence.EntityRepository;
 import tech.lemnova.continuum.infra.persistence.NoteRepository;
+import tech.lemnova.continuum.infra.security.CustomUserDetails;
 
 import java.time.Instant;
 import java.util.List;
@@ -44,6 +47,20 @@ class EntityServiceTest {
         mockUser.setEmail("test@test.com");
         when(userRepo.findById(anyString())).thenReturn(Optional.of(mockUser));
         when(planConfig.canCreateEntity(any(), anyLong())).thenReturn(true);
+
+        // Set authenticated user
+        setAuthenticatedUser("user1");
+    }
+
+    private void setAuthenticatedUser(String userId) {
+        User user = new User();
+        user.setId(userId);
+        user.setUsername("tester");
+        user.setEmail("tester@example.com");
+        user.setVaultId("vault1");
+
+        CustomUserDetails details = new CustomUserDetails(user);
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(details, null));
     }
 
     @Test
