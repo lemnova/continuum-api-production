@@ -10,6 +10,9 @@ import tech.lemnova.continuum.application.service.AuthService;
 import tech.lemnova.continuum.domain.user.User;
 import tech.lemnova.continuum.domain.user.UserRepository;
 
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
